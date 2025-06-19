@@ -282,10 +282,47 @@ private:
 
             QPixmap scaled = pix.scaled(w, h, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
+            // Create a new pixmap to paint image + text shadow
+            QPixmap composed(scaled.size());
+            composed.fill(Qt::transparent);
+
+            QPainter painter(&composed);
+            painter.setRenderHint(QPainter::Antialiasing);
+            painter.setRenderHint(QPainter::TextAntialiasing);
+
+            // Draw the scaled image
+            painter.drawPixmap(0, 0, scaled);
+   if(0){
+            // Optionally draw translucent black rect behind text for readability
+            QRect textRect(0, composed.height() - 30, composed.width(), 30);
+            painter.setBrush(QColor(0, 0, 0, 100)); // translucent black
+            painter.setPen(Qt::NoPen);
+            painter.drawRect(textRect);
+
+            // Prepare font and shadow
+            QString fileName = QFileInfo(path).fileName();
+
+            QFont font = painter.font();
+            font.setBold(true);
+            font.setPointSize(14);
+            painter.setFont(font);
+
+            QPoint shadowOffset(2, 2);
+
+            // Draw shadow text
+            painter.setPen(QColor(0, 0, 0, 160));
+            painter.drawText(textRect.translated(shadowOffset), Qt::AlignCenter | Qt::AlignVCenter, fileName);
+
+            // Draw main text
+            painter.setPen(Qt::white);
+            painter.drawText(textRect, Qt::AlignCenter | Qt::AlignVCenter, fileName);
+
+            painter.end();
+ }
             int row = i / 3;
             int col = i % 3;
 
-            pixmapItems[i]->setPixmap(scaled);
+            pixmapItems[i]->setPixmap(composed);
             pixmapItems[i]->setPos(col * w, row * h);
             pixmapItems[i]->setVisible(true);
 
@@ -301,6 +338,7 @@ private:
 
         scene->setSceneRect(0, 0, viewportSize.width(), viewportSize.height());
     }
+
 
     void loadFourPane() {
                slideshowMode = FourPane;
@@ -322,10 +360,45 @@ private:
 
             QPixmap scaled = pix.scaled(w, h, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
+            // --- Create a new pixmap with the same size to paint on ---
+            QPixmap composed(scaled.size());
+            composed.fill(Qt::transparent); // transparent background
+
+            QPainter painter(&composed);
+            painter.setRenderHint(QPainter::Antialiasing);
+            painter.setRenderHint(QPainter::TextAntialiasing);
+
+            // Draw the scaled image first
+            painter.drawPixmap(0, 0, scaled);
+if(0){
+            // Prepare the drop shadow text
+            QString fileName = QFileInfo(path).fileName();
+
+            // Draw shadow
+            painter.setPen(QPen(QColor(0, 0, 0, 160)));  // semi-transparent black shadow
+            QFont font = painter.font();
+            font.setBold(true);
+            font.setPointSize(14);
+            painter.setFont(font);
+
+            int textMargin = 8;
+            QPoint shadowOffset(2, 2);
+
+            QRect textRect(0, composed.height() - 30, composed.width(), 30);
+
+            // Draw shadow text slightly offset
+            painter.drawText(textRect.translated(shadowOffset), Qt::AlignCenter | Qt::AlignVCenter, fileName);
+
+            // Draw main white text
+            painter.setPen(QPen(Qt::white));
+            painter.drawText(textRect, Qt::AlignCenter | Qt::AlignVCenter, fileName);
+
+            painter.end();
+}
             int row = i / 2;
             int col = i % 2;
 
-            pixmapItems[i]->setPixmap(scaled);
+            pixmapItems[i]->setPixmap(composed);
             pixmapItems[i]->setPos(col * w, row * h);
             pixmapItems[i]->setVisible(true);
 
@@ -334,6 +407,7 @@ private:
             animations[i]->start();
             ++i;
         }
+
 
         // Hide any unused items (safety)
         for (; i < pixmapItems.size(); ++i) {
