@@ -27,6 +27,8 @@ public:
 
         scene = new QGraphicsScene(this);
         view = new QGraphicsView(scene, this);
+        view->installEventFilter(this);
+
         view->setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
         view->setAlignment(Qt::AlignCenter);
         view->setAcceptDrops(false);
@@ -57,11 +59,21 @@ protected:
     void keyPressEvent(QKeyEvent *event) override {
         switch (event->key()) {
             case Qt::Key_Right:
+            if (slideshowMode == FourPane)
+                loadFourPane();
+            else
+                nextImage();
+
+             break;
             case Qt::Key_Down:
+              nextImage();
+               break;
             case Qt::Key_Space:
                 nextImage();
                 break;
             case Qt::Key_Left:
+                 prevImage();
+             break;
             case Qt::Key_Up:
                 prevImage();
                 break;
@@ -73,6 +85,15 @@ protected:
                 toggleFullscreen();
                 break;
         }
+    }
+
+    bool eventFilter(QObject *obj, QEvent *event) override {
+        if (obj == view && event->type() == QEvent::KeyPress) {
+            QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
+            keyPressEvent(keyEvent);
+            return true;  // We've handled it
+        }
+        return QMainWindow::eventFilter(obj, event);
     }
 
     void resizeEvent(QResizeEvent *event) override {
@@ -204,6 +225,11 @@ private:
         QSize scaledSize = view->viewport()->size();
         pix = pix.scaled(scaledSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
+        // Show only the first pixmap item
+        for (int i = 0; i < pixmapItems.size(); ++i) {
+            pixmapItems[i]->setVisible(i == 0);
+        }
+
         pixmapItems[0]->setPixmap(pix);
         pixmapItems[0]->setPos(0, 0);
         scene->setSceneRect(pixmapItems[0]->boundingRect());
@@ -237,11 +263,17 @@ private:
 
             pixmapItems[i]->setPixmap(scaled);
             pixmapItems[i]->setPos(col * w, row * h);
+            pixmapItems[i]->setVisible(true);
 
             animations[i]->stop();
             opacityEffects[i]->setOpacity(0.0);
             animations[i]->start();
             ++i;
+        }
+
+        // Hide any unused items (safety)
+        for (; i < pixmapItems.size(); ++i) {
+            pixmapItems[i]->setVisible(false);
         }
 
         scene->setSceneRect(0, 0, viewportSize.width(), viewportSize.height());
