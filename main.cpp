@@ -34,7 +34,7 @@ public:
         view->setAcceptDrops(false);
         setCentralWidget(view);
 
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < 6; ++i) {
             QGraphicsPixmapItem *item = new QGraphicsPixmapItem();
             QGraphicsOpacityEffect *effect = new QGraphicsOpacityEffect();
             QPropertyAnimation *anim = new QPropertyAnimation(effect, "opacity", this);
@@ -59,6 +59,8 @@ protected:
     void keyPressEvent(QKeyEvent *event) override {
         switch (event->key()) {
             case Qt::Key_Right:
+            if (slideshowMode == SixPane)
+                loadSixPane();
             if (slideshowMode == FourPane)
                 loadFourPane();
             else
@@ -66,11 +68,17 @@ protected:
 
              break;
             case Qt::Key_Down:
-              nextImage();
+            if (slideshowMode == FourPane)
+                loadFourPane();
+            else
+                nextImage();
                break;
             case Qt::Key_Space:
+            if (slideshowMode == FourPane)
+                loadFourPane();
+            else
                 nextImage();
-                break;
+             break;
             case Qt::Key_Left:
                  prevImage();
              break;
@@ -99,7 +107,9 @@ protected:
     void resizeEvent(QResizeEvent *event) override {
         QMainWindow::resizeEvent(event);
         if (!images.isEmpty()) {
-            if (slideshowMode == FourPane)
+            if (slideshowMode == SixPane)
+                loadSixPane();
+            else if (slideshowMode == FourPane)
                 loadFourPane();
             else
                 loadImage(currentIndex);
@@ -136,6 +146,13 @@ private slots:
             slideshowTimer->start(13000);
         }
     }
+    void startSlideshowSix() {
+        slideshowMode = SixPane;
+        if (!images.isEmpty()) {
+            slideshowRunning = true;
+            slideshowTimer->start(13000);
+        }
+    }
 
     void startSlideshowFour() {
         slideshowMode = FourPane;
@@ -161,7 +178,9 @@ private slots:
     }
 
     void tickSlideshow() {
-        if (slideshowMode == FourPane)
+        if (slideshowMode == SixPane)
+            loadSixPane();
+        else if (slideshowMode == FourPane)
             loadFourPane();
         else
             nextImage();
@@ -183,7 +202,8 @@ private:
     QString folderPath;
     int currentIndex;
 
-    enum Mode { Single, FourPane };
+    enum Mode { Single, FourPane, SixPane };
+
     Mode slideshowMode;
 
     void setupMenu() {
@@ -193,6 +213,7 @@ private:
         QMenu *slideshowMenu = menuBar()->addMenu("Slideshow");
         slideshowMenu->addAction("Start Slideshow (Single)", this, &ImageViewer::startSlideshowSingle);
         slideshowMenu->addAction("Start Slideshow (4-Pane)", this, &ImageViewer::startSlideshowFour);
+        slideshowMenu->addAction("Start Slideshow (6-Pane)", this, &ImageViewer::startSlideshowSix);
         slideshowMenu->addAction("Stop Slideshow", this, &ImageViewer::stopSlideshow);
 
         QMenu *viewMenu = menuBar()->addMenu("View");
@@ -209,7 +230,9 @@ private:
         currentIndex = images.indexOf(QFileInfo(imagePath).fileName());
 
         QTimer::singleShot(50, [this]() {
-            if (slideshowMode == FourPane)
+             if (slideshowMode == SixPane)
+                 loadSixPane();
+            else if (slideshowMode == FourPane)
                 loadFourPane();
             else
                 loadImage(currentIndex);
@@ -239,7 +262,48 @@ private:
         animations[0]->start();
     }
 
+    void loadSixPane() {
+        slideshowMode = SixPane;
+        if (images.size() < 6) return;
+
+        QSet<int> indexes;
+        while (indexes.size() < 6)
+            indexes.insert(QRandomGenerator::global()->bounded(images.size()));
+
+        int i = 0;
+        QSize viewportSize = view->viewport()->size();
+        int w = viewportSize.width() / 3;
+        int h = viewportSize.height() / 2;
+
+        for (int index : indexes) {
+            QString path = folderPath + "/" + images[index];
+            QPixmap pix(path);
+            if (pix.isNull()) continue;
+
+            QPixmap scaled = pix.scaled(w, h, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+
+            int row = i / 3;
+            int col = i % 3;
+
+            pixmapItems[i]->setPixmap(scaled);
+            pixmapItems[i]->setPos(col * w, row * h);
+            pixmapItems[i]->setVisible(true);
+
+            animations[i]->stop();
+            opacityEffects[i]->setOpacity(0.0);
+            animations[i]->start();
+            ++i;
+        }
+
+        for (; i < pixmapItems.size(); ++i) {
+            pixmapItems[i]->setVisible(false);
+        }
+
+        scene->setSceneRect(0, 0, viewportSize.width(), viewportSize.height());
+    }
+
     void loadFourPane() {
+               slideshowMode = FourPane;
         if (images.size() < 4) return;
 
         QSet<int> indexes;
