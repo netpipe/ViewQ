@@ -34,7 +34,7 @@ public:
         view->setAlignment(Qt::AlignCenter);
         view->setAcceptDrops(false);
         setCentralWidget(view);
-        btext=true;
+        btext=false;
 
         for (int i = 0; i < 6; ++i) {
             QGraphicsPixmapItem *item = new QGraphicsPixmapItem();
