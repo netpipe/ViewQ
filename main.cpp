@@ -228,6 +228,7 @@ private:
     QString folderPath;
     int currentIndex;
     bool btext;
+    QList<QLabel*> gifLabels;
 
     enum Mode { Single, FourPane, SixPane };
 
@@ -299,8 +300,8 @@ private:
         painter.setRenderHint(QPainter::Antialiasing);
         painter.setRenderHint(QPainter::TextAntialiasing);
         painter.drawPixmap(0, 0, scaled);
-        if (0) {
-        //if (isGif(imagePath)) {
+     //   if (0) {
+        if (isGif(imagePath)) {
             QMovie* movie = new QMovie(imagePath);
             if (!movie->isValid()) {
                 delete movie;
@@ -310,12 +311,12 @@ private:
             movie->setScaledSize(scaledSize);
             QLabel* label = new QLabel;
             label->setMovie(movie);
-          //  label->setGeometry(col * w, row * h, w, h);
+            label->setGeometry(scaledSize.width(), scaledSize.height(), scaledSize.width(), scaledSize.height());
             label->setParent(view);  // or layout
             label->show();
             movie->start();
 
-            //gifLabels.append(label);  // manage them for cleanup
+            gifLabels.append(label);  // manage them for cleanup
         } else {
         // Draw the scaled image
         if(btext){
