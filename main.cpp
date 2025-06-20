@@ -295,7 +295,7 @@ private:
 
         // Draw the scaled image
         painter.drawPixmap(0, 0, scaled);
-        if(1){
+        if(btext){
                  // Optionally draw translucent black rect behind text for readability
                  QRect textRect(0, composed.height() - 30, composed.width(), 30);
                  painter.setBrush(QColor(0, 0, 0, 100)); // translucent black
