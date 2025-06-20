@@ -34,6 +34,7 @@ public:
         view->setAlignment(Qt::AlignCenter);
         view->setAcceptDrops(false);
         setCentralWidget(view);
+        btext=true;
 
         for (int i = 0; i < 6; ++i) {
             QGraphicsPixmapItem *item = new QGraphicsPixmapItem();
@@ -60,25 +61,13 @@ protected:
     void keyPressEvent(QKeyEvent *event) override {
         switch (event->key()) {
             case Qt::Key_Right:
-            if (slideshowMode == SixPane)
-                loadSixPane();
-            if (slideshowMode == FourPane)
-                loadFourPane();
-            else
-                nextImage();
-
+                tickSlideshow();
              break;
             case Qt::Key_Down:
-            if (slideshowMode == FourPane)
-                loadFourPane();
-            else
-                nextImage();
+                tickSlideshow();
                break;
             case Qt::Key_Space:
-            if (slideshowMode == FourPane)
-                loadFourPane();
-            else
-                nextImage();
+                tickSlideshow();
              break;
             case Qt::Key_Left:
                  prevImage();
@@ -126,8 +115,6 @@ protected:
     void loadImagesFromFolder(const QString& folderPath, const QString& startImage = QString()) {
        // QDir dir(folderPath);
         QStringList filters = { "*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif" };
-      //  QStringList files = dir.entryList(filters, QDir::Files, QDir::Name);
-      //  QStringList files = dir.entryList(filters, QDir::Files | QDir::NoSymLinks | QDir::AllDirs | QDir::NoDotAndDotDot, QDir::Name);
 
         images.clear();
         QDir dir(folderPath);
@@ -147,8 +134,7 @@ protected:
             currentIndex = 0;
         }
 
-        // Now show image(s)
-        tickSlideshow(); // or loadCurrentImage(), or loadFourPane(), etc.
+        tickSlideshow();
     }
 
     void dropEvent(QDropEvent *event) override {
@@ -161,16 +147,12 @@ protected:
             QFileInfo info(path);
 
             if (info.isDir()) {
-                // 🎯 Folder dropped — load all image files
                 loadImagesFromFolder(path);
             } else if (info.isFile()) {
-                // 📷 Single image dropped — load that and the folder it's in
                 loadImagesFromFolder(info.absolutePath(), info.fileName());
             }
-
             event->acceptProposedAction();
         }
-
     }
 
 private slots:
@@ -243,6 +225,7 @@ private:
     QStringList images;
     QString folderPath;
     int currentIndex;
+    bool btext;
 
     enum Mode { Single, FourPane, SixPane };
 
@@ -260,6 +243,11 @@ private:
 
         QMenu *viewMenu = menuBar()->addMenu("View");
         viewMenu->addAction("Toggle Fullscreen (F)", this, &ImageViewer::toggleFullscreen);
+        viewMenu->addAction("text (F5)", this, &ImageViewer::toggletext);
+    }
+
+    void toggletext() {
+        btext=!btext;
     }
 
     void loadImagesFromFile(const QString &imagePath) {
@@ -288,14 +276,53 @@ private:
         if (pix.isNull()) return;
 
         QSize scaledSize = view->viewport()->size();
-        pix = pix.scaled(scaledSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+      //  pix = pix.scaled(scaledSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
         // Show only the first pixmap item
         for (int i = 0; i < pixmapItems.size(); ++i) {
             pixmapItems[i]->setVisible(i == 0);
         }
 
-        pixmapItems[0]->setPixmap(pix);
+        QPixmap scaled = pix.scaled(scaledSize.width(), scaledSize.height(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+
+        // Create a new pixmap to paint image + text shadow
+        QPixmap composed(scaled.size());
+        composed.fill(Qt::transparent);
+
+        QPainter painter(&composed);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setRenderHint(QPainter::TextAntialiasing);
+
+        // Draw the scaled image
+        painter.drawPixmap(0, 0, scaled);
+        if(1){
+                 // Optionally draw translucent black rect behind text for readability
+                 QRect textRect(0, composed.height() - 30, composed.width(), 30);
+                 painter.setBrush(QColor(0, 0, 0, 100)); // translucent black
+                 painter.setPen(Qt::NoPen);
+                 painter.drawRect(textRect);
+
+                 // Prepare font and shadow
+                 QString fileName = QFileInfo(imagePath).fileName();
+
+                 QFont font = painter.font();
+                 font.setBold(true);
+                 font.setPointSize(14);
+                 painter.setFont(font);
+
+                 QPoint shadowOffset(2, 2);
+
+                 // Draw shadow text
+                 painter.setPen(QColor(0, 0, 0, 160));
+                 painter.drawText(textRect.translated(shadowOffset), Qt::AlignCenter | Qt::AlignVCenter, fileName);
+
+                 // Draw main text
+                 painter.setPen(Qt::white);
+                 painter.drawText(textRect, Qt::AlignCenter | Qt::AlignVCenter, fileName);
+
+                 painter.end();
+      }
+        pixmapItems[0]->setPixmap(composed);
         pixmapItems[0]->setPos(0, 0);
         scene->setSceneRect(pixmapItems[0]->boundingRect());
 
@@ -334,7 +361,7 @@ private:
 
             // Draw the scaled image
             painter.drawPixmap(0, 0, scaled);
-   if(0){
+   if(btext){
             // Optionally draw translucent black rect behind text for readability
             QRect textRect(0, composed.height() - 30, composed.width(), 30);
             painter.setBrush(QColor(0, 0, 0, 100)); // translucent black
@@ -412,7 +439,7 @@ private:
 
             // Draw the scaled image first
             painter.drawPixmap(0, 0, scaled);
-if(0){
+if(btext){
             // Prepare the drop shadow text
             QString fileName = QFileInfo(path).fileName();
 
