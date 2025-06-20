@@ -14,6 +14,7 @@
 #include <QDebug>
 #include <QRandomGenerator>
 #include <QPixmap>
+#include <QDirIterator>
 
 class ImageViewer : public QMainWindow {
     Q_OBJECT
@@ -122,13 +123,54 @@ protected:
         }
     }
 
+    void loadImagesFromFolder(const QString& folderPath, const QString& startImage = QString()) {
+       // QDir dir(folderPath);
+        QStringList filters = { "*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif" };
+      //  QStringList files = dir.entryList(filters, QDir::Files, QDir::Name);
+      //  QStringList files = dir.entryList(filters, QDir::Files | QDir::NoSymLinks | QDir::AllDirs | QDir::NoDotAndDotDot, QDir::Name);
+
+        images.clear();
+        QDir dir(folderPath);
+    QDirIterator it(folderPath, filters, QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            QString filePath = it.next();
+            QString relative = dir.relativeFilePath(filePath);  // Strips base path
+            images << relative;  // e.g., just "cat.jpg"
+        }
+
+        this->folderPath = folderPath;
+
+        // Optionally set currentIndex based on the start image
+        if (!startImage.isEmpty()) {
+            currentIndex = images.indexOf(startImage);
+        } else {
+            currentIndex = 0;
+        }
+
+        // Now show image(s)
+        tickSlideshow(); // or loadCurrentImage(), or loadFourPane(), etc.
+    }
+
     void dropEvent(QDropEvent *event) override {
         QList<QUrl> urls = event->mimeData()->urls();
-        if (!urls.isEmpty()) {
-            QString filePath = urls.first().toLocalFile();
-            qDebug() << "Dropped file:" << filePath;
-            loadImagesFromFile(filePath);
+        if (event->mimeData()->hasUrls()) {
+            QList<QUrl> urls = event->mimeData()->urls();
+            if (urls.isEmpty()) return;
+
+            QString path = urls.first().toLocalFile();
+            QFileInfo info(path);
+
+            if (info.isDir()) {
+                // 🎯 Folder dropped — load all image files
+                loadImagesFromFolder(path);
+            } else if (info.isFile()) {
+                // 📷 Single image dropped — load that and the folder it's in
+                loadImagesFromFolder(info.absolutePath(), info.fileName());
+            }
+
+            event->acceptProposedAction();
         }
+
     }
 
 private slots:
