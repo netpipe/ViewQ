@@ -15,6 +15,8 @@
 #include <QRandomGenerator>
 #include <QPixmap>
 #include <QDirIterator>
+#include <QLabel>
+#include <QMovie>
 
 class ImageViewer : public QMainWindow {
     Q_OBJECT
@@ -70,10 +72,10 @@ protected:
                 tickSlideshow();
              break;
             case Qt::Key_Left:
-                 prevImage();
+                 prevImage(currentIndex-1);
              break;
             case Qt::Key_Up:
-                prevImage();
+                prevImage(currentIndex-1);
                 break;
             case Qt::Key_Escape:
                 if (fullscreen) toggleFullscreen();
@@ -134,7 +136,7 @@ protected:
             currentIndex = 0;
         }
 
-        tickSlideshow();
+        loadImage(currentIndex);
     }
 
     void dropEvent(QDropEvent *event) override {
@@ -269,6 +271,10 @@ private:
         });
     }
 
+    bool isGif(const QString& filePath) {
+        return filePath.endsWith(".gif", Qt::CaseInsensitive);
+    }
+
     void loadImage(int index) {
         if (index < 0 || index >= images.size()) return;
         QString imagePath = folderPath + "/" + images[index];
@@ -292,9 +298,26 @@ private:
         QPainter painter(&composed);
         painter.setRenderHint(QPainter::Antialiasing);
         painter.setRenderHint(QPainter::TextAntialiasing);
-
-        // Draw the scaled image
         painter.drawPixmap(0, 0, scaled);
+        if (0) {
+        //if (isGif(imagePath)) {
+            QMovie* movie = new QMovie(imagePath);
+            if (!movie->isValid()) {
+                delete movie;
+             //   continue;
+            }
+
+            movie->setScaledSize(scaledSize);
+            QLabel* label = new QLabel;
+            label->setMovie(movie);
+          //  label->setGeometry(col * w, row * h, w, h);
+            label->setParent(view);  // or layout
+            label->show();
+            movie->start();
+
+            //gifLabels.append(label);  // manage them for cleanup
+        } else {
+        // Draw the scaled image
         if(btext){
                  // Optionally draw translucent black rect behind text for readability
                  QRect textRect(0, composed.height() - 30, composed.width(), 30);
@@ -325,6 +348,7 @@ private:
         pixmapItems[0]->setPixmap(composed);
         pixmapItems[0]->setPos(0, 0);
         scene->setSceneRect(pixmapItems[0]->boundingRect());
+}
 
         animations[0]->stop();
         opacityEffects[0]->setOpacity(0.0);
@@ -492,9 +516,9 @@ if(btext){
         loadImage(currentIndex);
     }
 
-    void prevImage() {
+    void prevImage(int test) {
         if (images.isEmpty()) return;
-        currentIndex = (currentIndex - 1 + images.size()) % images.size();
+        currentIndex = (test - 1 + images.size()) % images.size();
         loadImage(currentIndex);
     }
 };
