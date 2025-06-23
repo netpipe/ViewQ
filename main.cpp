@@ -37,6 +37,7 @@ public:
         view->setAcceptDrops(false);
         setCentralWidget(view);
         btext=false;
+        view->setBackgroundBrush(Qt::black);  // or any QColor
 
         for (int i = 0; i < 6; ++i) {
             QGraphicsPixmapItem *item = new QGraphicsPixmapItem();
@@ -72,10 +73,10 @@ protected:
                 tickSlideshow();
              break;
             case Qt::Key_Left:
-                 prevImage(currentIndex-1);
+                 prevImage();
              break;
             case Qt::Key_Up:
-                prevImage(currentIndex-1);
+                prevImage();
                 break;
             case Qt::Key_Escape:
                 if (fullscreen) toggleFullscreen();
@@ -86,7 +87,15 @@ protected:
                 break;
         }
     }
-
+    void mousePressEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton) {
+         //   qDebug() << "Left mouse button pressed";
+             tickSlideshow();
+        } else if (event->button() == Qt::RightButton) {
+         //   qDebug() << "Right mouse button pressed";
+             tickSlideshow();
+        }
+     }
     bool eventFilter(QObject *obj, QEvent *event) override {
         if (obj == view && event->type() == QEvent::KeyPress) {
             QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
@@ -309,11 +318,13 @@ private:
             }
 
             movie->setScaledSize(scaledSize);
+
             QLabel* label = new QLabel;
             label->setMovie(movie);
             label->setGeometry(scaledSize.width(), scaledSize.height(), scaledSize.width(), scaledSize.height());
             label->setParent(view);  // or layout
             label->show();
+            label->setVisible(true);
             movie->start();
 
             gifLabels.append(label);  // manage them for cleanup
@@ -517,9 +528,9 @@ if(btext){
         loadImage(currentIndex);
     }
 
-    void prevImage(int test) {
+    void prevImage() {
         if (images.isEmpty()) return;
-        currentIndex = (test - 1 + images.size()) % images.size();
+        currentIndex = (currentIndex - 1 + images.size()) % images.size();
         loadImage(currentIndex);
     }
 };
