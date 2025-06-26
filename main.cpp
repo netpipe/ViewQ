@@ -313,6 +313,9 @@ private:
 
         if (isGif(imagePath)) {
             QMovie* movie = new QMovie(imagePath); movies[showIndex] = movie;
+
+            connect(movie, &QMovie::finished, movie, &QMovie::start);  // 👈 Loop manually
+
             movie->setScaledSize(scaledSize);
             movie->start();
             connect(movie, &QMovie::frameChanged, this, [=]() {
@@ -381,7 +384,6 @@ private:
 
         QVector<int> indexes;
         while (indexes.size() < SixPane) {
-      //      int idx = rand() * SixPane / RAND_MAX;
             int idx = QRandomGenerator::global()->bounded(images.size());
             if (indexes.contains(idx)) continue;
             indexes.append(idx);
@@ -415,7 +417,6 @@ private:
 
         QVector<int> indexes;
         while (indexes.size() < FourPane) {
-         //   int idx = rand() * FourPane / RAND_MAX;
             int idx = QRandomGenerator::global()->bounded(images.size());
             if (indexes.contains(idx)) continue;
             indexes.append(idx);
