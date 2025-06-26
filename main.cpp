@@ -12,12 +12,11 @@
 #include <QMimeData>
 #include <QDropEvent>
 #include <QDebug>
-#include <QRandomGenerator>
 #include <QPixmap>
 #include <QDirIterator>
 #include <QLabel>
 #include <QMovie>
-
+#include <QRandomGenerator>
 class ImageViewer : public QMainWindow {
     Q_OBJECT
 
@@ -36,10 +35,19 @@ public:
         view->setAlignment(Qt::AlignCenter);
         view->setAcceptDrops(false);
         setCentralWidget(view);
+
+        initData(6);
+
         btext=false;
         view->setBackgroundBrush(Qt::black);  // or any QColor
+        slideshowTimer = new QTimer(this);
+        //connect(slideshowTimer, &QTimer::timeout, this, &ImageViewer::tickSlideshow);
 
-        for (int i = 0; i < 6; ++i) {
+        setupMenu();
+    }
+
+    void initData(int count) {
+        for (int i = 0; i < count; ++i) {
             QGraphicsPixmapItem *item = new QGraphicsPixmapItem();
             QGraphicsOpacityEffect *effect = new QGraphicsOpacityEffect();
             QPropertyAnimation *anim = new QPropertyAnimation(effect, "opacity", this);
@@ -52,50 +60,47 @@ public:
             opacityEffects.append(effect);
             animations.append(anim);
             scene->addItem(item);
+
+            movies.append(nullptr);
         }
-
-        slideshowTimer = new QTimer(this);
-        connect(slideshowTimer, &QTimer::timeout, this, &ImageViewer::tickSlideshow);
-
-        setupMenu();
     }
 
 protected:
     void keyPressEvent(QKeyEvent *event) override {
         switch (event->key()) {
-            case Qt::Key_Right:
-                tickSlideshow();
-             break;
-            case Qt::Key_Down:
-                tickSlideshow();
-               break;
-            case Qt::Key_Space:
-                tickSlideshow();
-             break;
-            case Qt::Key_Left:
-                 prevImage();
-             break;
-            case Qt::Key_Up:
-                prevImage();
-                break;
-            case Qt::Key_Escape:
-                if (fullscreen) toggleFullscreen();
-                else close();
-                break;
-            case Qt::Key_F:
-                toggleFullscreen();
-                break;
+        case Qt::Key_Right:
+            tickSlideshow();
+            break;
+        case Qt::Key_Down:
+            tickSlideshow();
+            break;
+        case Qt::Key_Space:
+            tickSlideshow();
+            break;
+        case Qt::Key_Left:
+            prevImage();
+            break;
+        case Qt::Key_Up:
+            prevImage();
+            break;
+        case Qt::Key_Escape:
+            if (fullscreen) toggleFullscreen();
+            else close();
+            break;
+        case Qt::Key_F:
+            toggleFullscreen();
+            break;
         }
     }
     void mousePressEvent(QMouseEvent *event) override {
         if (event->button() == Qt::LeftButton) {
-         //   qDebug() << "Left mouse button pressed";
-             tickSlideshow();
+            //   qDebug() << "Left mouse button pressed";
+            tickSlideshow();
         } else if (event->button() == Qt::RightButton) {
-         //   qDebug() << "Right mouse button pressed";
-             tickSlideshow();
+            //   qDebug() << "Right mouse button pressed";
+            tickSlideshow();
         }
-     }
+    }
     bool eventFilter(QObject *obj, QEvent *event) override {
         if (obj == view && event->type() == QEvent::KeyPress) {
             QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
@@ -113,7 +118,7 @@ protected:
             else if (slideshowMode == FourPane)
                 loadFourPane();
             else
-                loadImage(currentIndex);
+                loadImage(currentIndex, 0, view->viewport()->size());
         }
     }
 
@@ -124,12 +129,12 @@ protected:
     }
 
     void loadImagesFromFolder(const QString& folderPath, const QString& startImage = QString()) {
-       // QDir dir(folderPath);
+        // QDir dir(folderPath);
         QStringList filters = { "*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif" };
 
         images.clear();
         QDir dir(folderPath);
-    QDirIterator it(folderPath, filters, QDir::Files, QDirIterator::Subdirectories);
+        QDirIterator it(folderPath, filters, QDir::Files, QDirIterator::Subdirectories);
         while (it.hasNext()) {
             QString filePath = it.next();
             QString relative = dir.relativeFilePath(filePath);  // Strips base path
@@ -145,7 +150,7 @@ protected:
             currentIndex = 0;
         }
 
-        loadImage(currentIndex);
+        loadImage(currentIndex, 0, view->viewport()->size());
     }
 
     void dropEvent(QDropEvent *event) override {
@@ -168,7 +173,7 @@ protected:
 
 private slots:
     void openImage() {
-        QString imagePath = QFileDialog::getOpenFileName(this, "Open Image", QDir::homePath(), "Images (*.png *.jpg *.jpeg *.bmp)");
+        QString imagePath = QFileDialog::getOpenFileName(this, "Open Image", QDir::homePath(), "Images (*.png *.jpg *.jpeg *.bmp *.gif)");
         if (!imagePath.isEmpty()) {
             loadImagesFromFile(imagePath);
         }
@@ -228,6 +233,7 @@ private:
     QVector<QGraphicsPixmapItem*> pixmapItems;
     QVector<QGraphicsOpacityEffect*> opacityEffects;
     QVector<QPropertyAnimation*> animations;
+    QVector<QMovie*> movies;
 
     QTimer *slideshowTimer;
     bool slideshowRunning;
@@ -237,9 +243,8 @@ private:
     QString folderPath;
     int currentIndex;
     bool btext;
-    QList<QLabel*> gifLabels;
 
-    enum Mode { Single, FourPane, SixPane };
+    enum Mode { Single, FourPane = 4, SixPane = 6 };
 
     Mode slideshowMode;
 
@@ -272,12 +277,12 @@ private:
         currentIndex = images.indexOf(QFileInfo(imagePath).fileName());
 
         QTimer::singleShot(50, [this]() {
-             if (slideshowMode == SixPane)
-                 loadSixPane();
+            if (slideshowMode == SixPane)
+                loadSixPane();
             else if (slideshowMode == FourPane)
                 loadFourPane();
             else
-                loadImage(currentIndex);
+                loadImage(currentIndex, 0, view->viewport()->size());
         });
     }
 
@@ -285,107 +290,40 @@ private:
         return filePath.endsWith(".gif", Qt::CaseInsensitive);
     }
 
-    void loadImage(int index) {
-        if (index < 0 || index >= images.size()) return;
-        QString imagePath = folderPath + "/" + images[index];
-        QPixmap pix(imagePath);
-        if (pix.isNull()) return;
-
-        QSize scaledSize = view->viewport()->size();
-      //  pix = pix.scaled(scaledSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-
-        // Show only the first pixmap item
+    void hideAllPanes() {
         for (int i = 0; i < pixmapItems.size(); ++i) {
-            pixmapItems[i]->setVisible(i == 0);
-        }
-
-        QPixmap scaled = pix.scaled(scaledSize.width(), scaledSize.height(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-
-        // Create a new pixmap to paint image + text shadow
-        QPixmap composed(scaled.size());
-        composed.fill(Qt::transparent);
-
-        QPainter painter(&composed);
-        painter.setRenderHint(QPainter::Antialiasing);
-        painter.setRenderHint(QPainter::TextAntialiasing);
-        painter.drawPixmap(0, 0, scaled);
-     //   if (0) {
-        if (isGif(imagePath)) {
-            QMovie* movie = new QMovie(imagePath);
-            if (!movie->isValid()) {
-                delete movie;
-             //   continue;
+            pixmapItems[i]->setVisible(false);
+            animations[i]->stop();
+            QMovie* movie = movies[i];
+            if (movie) {
+                delete movie; movies[i] = nullptr;
             }
-
-            movie->setScaledSize(scaledSize);
-
-            QLabel* label = new QLabel;
-            label->setMovie(movie);
-            label->setGeometry(scaledSize.width(), scaledSize.height(), scaledSize.width(), scaledSize.height());
-            label->setParent(view);  // or layout
-            label->show();
-            label->setVisible(true);
-            movie->start();
-
-            gifLabels.append(label);  // manage them for cleanup
-        } else {
-        // Draw the scaled image
-        if(btext){
-                 // Optionally draw translucent black rect behind text for readability
-                 QRect textRect(0, composed.height() - 30, composed.width(), 30);
-                 painter.setBrush(QColor(0, 0, 0, 100)); // translucent black
-                 painter.setPen(Qt::NoPen);
-                 painter.drawRect(textRect);
-
-                 // Prepare font and shadow
-                 QString fileName = QFileInfo(imagePath).fileName();
-
-                 QFont font = painter.font();
-                 font.setBold(true);
-                 font.setPointSize(14);
-                 painter.setFont(font);
-
-                 QPoint shadowOffset(2, 2);
-
-                 // Draw shadow text
-                 painter.setPen(QColor(0, 0, 0, 160));
-                 painter.drawText(textRect.translated(shadowOffset), Qt::AlignCenter | Qt::AlignVCenter, fileName);
-
-                 // Draw main text
-                 painter.setPen(Qt::white);
-                 painter.drawText(textRect, Qt::AlignCenter | Qt::AlignVCenter, fileName);
-
-                 painter.end();
-      }
-        pixmapItems[0]->setPixmap(composed);
-        pixmapItems[0]->setPos(0, 0);
-        scene->setSceneRect(pixmapItems[0]->boundingRect());
-}
-
-        animations[0]->stop();
-        opacityEffects[0]->setOpacity(0.0);
-        animations[0]->start();
+        }
     }
 
-    void loadSixPane() {
-        slideshowMode = SixPane;
-        if (images.size() < 6) return;
+    void loadImage(int index, int showIndex, const QSize& scaledSize, bool onlyShowOne = true) {
+        if (index < 0 || index >= images.size()) return;
+        QString imagePath = folderPath + "/" + images[index];
+        showIndex = onlyShowOne ? 0 : showIndex;
+        // Show only the first pixmap item
+        if (onlyShowOne)   {
+             hideAllPanes();
+             pixmapItems[showIndex]->setVisible(true);
+        }
 
-        QSet<int> indexes;
-        while (indexes.size() < 6)
-            indexes.insert(QRandomGenerator::global()->bounded(images.size()));
+        if (isGif(imagePath)) {
+            QMovie* movie = new QMovie(imagePath); movies[showIndex] = movie;
+            movie->setScaledSize(scaledSize);
+            movie->start();
+            connect(movie, &QMovie::frameChanged, this, [=]() {
+                pixmapItems[showIndex]->setPixmap(movie->currentPixmap());
+            });
+        } else {
+            QPixmap pix(imagePath);
+            if (pix.isNull()) return;         
 
-        int i = 0;
-        QSize viewportSize = view->viewport()->size();
-        int w = viewportSize.width() / 3;
-        int h = viewportSize.height() / 2;
-
-        for (int index : indexes) {
-            QString path = folderPath + "/" + images[index];
-            QPixmap pix(path);
-            if (pix.isNull()) continue;
-
-            QPixmap scaled = pix.scaled(w, h, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            //  pix = pix.scaled(scaledSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            QPixmap scaled = pix.scaled(scaledSize.width(), scaledSize.height(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
             // Create a new pixmap to paint image + text shadow
             QPixmap composed(scaled.size());
@@ -394,51 +332,75 @@ private:
             QPainter painter(&composed);
             painter.setRenderHint(QPainter::Antialiasing);
             painter.setRenderHint(QPainter::TextAntialiasing);
+            painter.drawPixmap(0, 0, scaled);
 
             // Draw the scaled image
-            painter.drawPixmap(0, 0, scaled);
-   if(btext){
-            // Optionally draw translucent black rect behind text for readability
-            QRect textRect(0, composed.height() - 30, composed.width(), 30);
-            painter.setBrush(QColor(0, 0, 0, 100)); // translucent black
-            painter.setPen(Qt::NoPen);
-            painter.drawRect(textRect);
+            if(btext){
+                // Optionally draw translucent black rect behind text for readability
+                QRect textRect(0, composed.height() - 30, composed.width(), 30);
+                painter.setBrush(QColor(0, 0, 0, 100)); // translucent black
+                painter.setPen(Qt::NoPen);
+                painter.drawRect(textRect);
 
-            // Prepare font and shadow
-            QString fileName = QFileInfo(path).fileName();
+                // Prepare font and shadow
+                QString fileName = QFileInfo(imagePath).fileName();
 
-            QFont font = painter.font();
-            font.setBold(true);
-            font.setPointSize(14);
-            painter.setFont(font);
+                QFont font = painter.font();
+                font.setBold(true);
+                font.setPointSize(14);
+                painter.setFont(font);
 
-            QPoint shadowOffset(2, 2);
+                QPoint shadowOffset(2, 2);
 
-            // Draw shadow text
-            painter.setPen(QColor(0, 0, 0, 160));
-            painter.drawText(textRect.translated(shadowOffset), Qt::AlignCenter | Qt::AlignVCenter, fileName);
+                // Draw shadow text
+                painter.setPen(QColor(0, 0, 0, 160));
+                painter.drawText(textRect.translated(shadowOffset), Qt::AlignCenter | Qt::AlignVCenter, fileName);
 
-            // Draw main text
-            painter.setPen(Qt::white);
-            painter.drawText(textRect, Qt::AlignCenter | Qt::AlignVCenter, fileName);
+                // Draw main text
+                painter.setPen(Qt::white);
+                painter.drawText(textRect, Qt::AlignCenter | Qt::AlignVCenter, fileName);
 
-            painter.end();
- }
+                painter.end();
+            }
+            pixmapItems[showIndex]->setPixmap(composed);
+            scene->setSceneRect(pixmapItems[showIndex]->boundingRect());
+        }
+
+        pixmapItems[showIndex]->setPos(0, 0);
+
+        animations[showIndex]->stop();
+        opacityEffects[showIndex]->setOpacity(0.0);
+        animations[showIndex]->start();
+    }
+
+    void loadSixPane() {
+        slideshowMode = SixPane;
+        if (images.size() < SixPane) return;
+
+        hideAllPanes();
+
+        QVector<int> indexes;
+        while (indexes.size() < SixPane) {
+      //      int idx = rand() * SixPane / RAND_MAX;
+            int idx = QRandomGenerator::global()->bounded(images.size());
+            if (indexes.contains(idx)) continue;
+            indexes.append(idx);
+        }
+        int i = 0;
+        QSize viewportSize = view->viewport()->size();
+        int w = viewportSize.width() / 3;
+        int h = viewportSize.height() / 2;
+
+        for (int index : indexes) {
+            QSize scaledSize(w, h);
+            loadImage(index, i, scaledSize, false);
+
             int row = i / 3;
             int col = i % 3;
-
-            pixmapItems[i]->setPixmap(composed);
             pixmapItems[i]->setPos(col * w, row * h);
             pixmapItems[i]->setVisible(true);
 
-            animations[i]->stop();
-            opacityEffects[i]->setOpacity(0.0);
-            animations[i]->start();
             ++i;
-        }
-
-        for (; i < pixmapItems.size(); ++i) {
-            pixmapItems[i]->setVisible(false);
         }
 
         scene->setSceneRect(0, 0, viewportSize.width(), viewportSize.height());
@@ -446,12 +408,18 @@ private:
 
 
     void loadFourPane() {
-               slideshowMode = FourPane;
-        if (images.size() < 4) return;
+        slideshowMode = FourPane;
+        if (images.size() < FourPane) return;
 
-        QSet<int> indexes;
-        while (indexes.size() < 4)
-            indexes.insert(QRandomGenerator::global()->bounded(images.size()));
+        hideAllPanes();
+
+        QVector<int> indexes;
+        while (indexes.size() < FourPane) {
+         //   int idx = rand() * FourPane / RAND_MAX;
+            int idx = QRandomGenerator::global()->bounded(images.size());
+            if (indexes.contains(idx)) continue;
+            indexes.append(idx);
+        }
 
         int i = 0;
         QSize viewportSize = view->viewport()->size();
@@ -459,64 +427,13 @@ private:
         int h = viewportSize.height() / 2;
 
         for (int index : indexes) {
-            QString path = folderPath + "/" + images[index];
-            QPixmap pix(path);
-            if (pix.isNull()) continue;
-
-            QPixmap scaled = pix.scaled(w, h, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-
-            // --- Create a new pixmap with the same size to paint on ---
-            QPixmap composed(scaled.size());
-            composed.fill(Qt::transparent); // transparent background
-
-            QPainter painter(&composed);
-            painter.setRenderHint(QPainter::Antialiasing);
-            painter.setRenderHint(QPainter::TextAntialiasing);
-
-            // Draw the scaled image first
-            painter.drawPixmap(0, 0, scaled);
-if(btext){
-            // Prepare the drop shadow text
-            QString fileName = QFileInfo(path).fileName();
-
-            // Draw shadow
-            painter.setPen(QPen(QColor(0, 0, 0, 160)));  // semi-transparent black shadow
-            QFont font = painter.font();
-            font.setBold(true);
-            font.setPointSize(14);
-            painter.setFont(font);
-
-            int textMargin = 8;
-            QPoint shadowOffset(2, 2);
-
-            QRect textRect(0, composed.height() - 30, composed.width(), 30);
-
-            // Draw shadow text slightly offset
-            painter.drawText(textRect.translated(shadowOffset), Qt::AlignCenter | Qt::AlignVCenter, fileName);
-
-            // Draw main white text
-            painter.setPen(QPen(Qt::white));
-            painter.drawText(textRect, Qt::AlignCenter | Qt::AlignVCenter, fileName);
-
-            painter.end();
-}
+            QSize scaledSize(w, h);
+            loadImage(index, i, scaledSize, false);
             int row = i / 2;
             int col = i % 2;
-
-            pixmapItems[i]->setPixmap(composed);
             pixmapItems[i]->setPos(col * w, row * h);
             pixmapItems[i]->setVisible(true);
-
-            animations[i]->stop();
-            opacityEffects[i]->setOpacity(0.0);
-            animations[i]->start();
             ++i;
-        }
-
-
-        // Hide any unused items (safety)
-        for (; i < pixmapItems.size(); ++i) {
-            pixmapItems[i]->setVisible(false);
         }
 
         scene->setSceneRect(0, 0, viewportSize.width(), viewportSize.height());
@@ -525,17 +442,15 @@ if(btext){
     void nextImage() {
         if (images.isEmpty()) return;
         currentIndex = (currentIndex + 1) % images.size();
-        loadImage(currentIndex);
+        loadImage(currentIndex, 0, view->viewport()->size());
     }
 
     void prevImage() {
         if (images.isEmpty()) return;
         currentIndex = (currentIndex - 1 + images.size()) % images.size();
-        loadImage(currentIndex);
+        loadImage(currentIndex, 0, view->viewport()->size());
     }
 };
-
-
 
 
 int main(int argc, char *argv[]) {
