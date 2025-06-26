@@ -41,7 +41,7 @@ public:
         btext=false;
         view->setBackgroundBrush(Qt::black);  // or any QColor
         slideshowTimer = new QTimer(this);
-        //connect(slideshowTimer, &QTimer::timeout, this, &ImageViewer::tickSlideshow);
+        connect(slideshowTimer, &QTimer::timeout, this, &ImageViewer::tickSlideshow);
 
         setupMenu();
     }
